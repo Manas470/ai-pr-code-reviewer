@@ -4,13 +4,29 @@ import re
 from openai import OpenAI
 
 
-class NvidiaLLMClient:
+class LLMClient:
+    """
+    Provider-agnostic LLM client.
+    Works with any OpenAI-compatible API including NVIDIA NIM, OpenAI, Groq,
+    Together AI, Ollama, and others. Configure via environment variables.
+    """
+
     def __init__(self):
-        self.client = OpenAI(
-            base_url="https://integrate.api.nvidia.com/v1",
-            api_key=os.environ["NVIDIA_API_KEY"]
-        )
-        self.model = "meta/llama-4-maverick-17b-128e-instruct"
+        api_key = os.environ.get("LLM_API_KEY")
+        base_url = os.environ.get("LLM_BASE_URL")
+        self.model = os.environ.get("LLM_MODEL")
+
+        if not api_key:
+            raise ValueError("LLM_API_KEY environment variable is required")
+        if not self.model:
+            raise ValueError("LLM_MODEL environment variable is required")
+
+        # base_url is optional - defaults to OpenAI if not set
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+
+        self.client = OpenAI(**client_kwargs)
 
     def review_code(self, code_diff: str, filename: str) -> dict:
         prompt = f"""You are a senior software engineer and security expert doing a thorough code review.
@@ -81,7 +97,10 @@ Keep it concise, actionable, and professional. Do not use emojis."""
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a senior engineer writing PR review comments. Do not use emojis."},
+                {
+                    "role": "system",
+                    "content": "You are a senior engineer writing PR review comments. Do not use emojis."
+                },
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,

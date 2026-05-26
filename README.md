@@ -1,6 +1,8 @@
 # AI PR Code Reviewer
 
-An automated GitHub Pull Request reviewer powered by NVIDIA Llama-4 Maverick. It reads every changed file in a PR, identifies real issues at the line level, posts inline comments directly on the problematic code, and submits a final verdict (Approve, Request Changes, or Comment) without any human intervention.
+An automated GitHub Pull Request reviewer that works with any LLM provider. It reads every changed file in a PR, identifies real issues at the line level, posts inline comments directly on the problematic code, and submits a final verdict (Approve, Request Changes, or Comment) without any human intervention.
+
+Works with OpenAI, NVIDIA NIM, Groq, Together AI, Ollama, or any OpenAI-compatible API.
 
 ---
 
@@ -14,77 +16,49 @@ This tool acts as an always-on reviewer that catches issues before a human even 
 
 ## Real Output from a Test Run
 
-The following results are from running this tool on a real PR that added a user authentication endpoint (5 files changed, 312 lines added):
+The following results are from running this tool on a real PR that added a user authentication endpoint (3 files changed, 128 lines added):
 
 ```
-Reviewing PR #7 in testorg/backend-api
-  Title: Add user authentication endpoint
-  Commit: 3fa92c1
-  Files to review: 4/5
-  Analyzing: src/auth/login.py
-  Analyzing: src/models/user.py
-  Analyzing: src/utils/token.py
+Reviewing PR #1 in gowthambhuvanam/ai-reviewer-test-project
+  Title: Add user authentication module and API endpoints
+  Commit: 9760a0c
+  Files to review: 3/3
+  Analyzing: src/api.py
+  Analyzing: src/auth.py
   Analyzing: tests/test_auth.py
   Generating summary...
 
 Review submitted: Request Changes
-Files reviewed: 4
-Issues found: 6
-  Critical: 1 (SQL injection in login.py line 23)
-  High: 2 (plaintext password comparison, missing token expiry)
-  Medium: 2 (unhandled exception, overly broad except clause)
-  Low: 1 (inconsistent naming)
-Overall score: 4/10
+Files reviewed: 3
 Time taken: 31 seconds
 ```
 
-Inline comment posted on login.py line 23:
+Issues caught:
+
+| Severity | Count | Examples |
+|----------|-------|---------|
+| Critical | 3 | SQL injection line 14, XSS line 33, command injection line 32 |
+| High | 10 | Hardcoded secret, no auth on endpoints, path traversal, MD5 passwords |
+| Medium | 5 | No JWT expiry, DB connection leak, empty test assertions |
+
+Inline comment example posted on auth.py line 14:
 
 ```
-[SECURITY] CRITICAL
+[SECURITY] CRITICAL severity
 
 SQL query is built using string concatenation. The username parameter is
 directly interpolated into the query string, making this endpoint vulnerable
-to SQL injection. An attacker can input the value:  ' OR '1'='1  to bypass
-authentication entirely and gain access to any account.
+to SQL injection. An attacker can input: ' OR '1'='1 to bypass authentication.
 
-Suggested fix:
-Use parameterized queries.
-cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+Suggested fix: Use parameterized queries.
+cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
 ```
-
----
-
-## ROI Breakdown
-
-Based on testing across 14 real PRs over one week:
-
-| Metric | Manual Review | With AI Reviewer |
-|--------|--------------|-----------------|
-| Average review time per PR | 41 minutes | 31 seconds |
-| Issues caught per PR | 3.2 | 5.8 |
-| Critical issues missed | 2 in 14 PRs | 0 in 14 PRs |
-| Engineer time saved per week (5 PRs/day team) | - | ~17 hours |
-
-The tool catches on average 81% more issues than a manual review pass on the same code, particularly for security-related patterns that humans normalize over time.
-
----
-
-## How It Works
-
-1. A developer opens or updates a Pull Request
-2. GitHub Actions triggers the reviewer automatically
-3. The tool fetches the diff for every changed code file
-4. Each file's diff is sent to Llama-4 Maverick with a structured prompt asking it to find bugs, security issues, performance problems, and style violations
-5. The model returns a structured JSON response with each issue mapped to a specific line number
-6. The tool posts an inline comment on each flagged line inside the PR
-7. A final summary comment is posted with an overall score and verdict
 
 ---
 
 ## Setup
 
-### Option 1: Add to any existing GitHub repository
+### Option 1: Add to any existing GitHub repository (recommended)
 
 Copy the workflow file into your repository:
 
@@ -94,11 +68,39 @@ Copy the workflow file into your repository:
     pr-review.yml
 ```
 
-Add one secret in your repository Settings under Secrets and variables, then Actions:
+Add three secrets in your repository Settings under Secrets and variables, then Actions:
 
-- NVIDIA_API_KEY: your NVIDIA NIM API key
+| Secret | Description |
+|--------|-------------|
+| LLM_API_KEY | Your API key from whichever provider you use |
+| LLM_BASE_URL | API base URL for your provider (see examples below) |
+| LLM_MODEL | Model name to use |
 
-GITHUB_TOKEN is provided automatically by GitHub Actions.
+Provider examples:
+
+```
+# OpenAI
+LLM_API_KEY     = sk-...
+LLM_BASE_URL    = https://api.openai.com/v1
+LLM_MODEL       = gpt-4o
+
+# NVIDIA NIM
+LLM_API_KEY     = nvapi-...
+LLM_BASE_URL    = https://integrate.api.nvidia.com/v1
+LLM_MODEL       = meta/llama-4-maverick-17b-128e-instruct
+
+# Groq
+LLM_API_KEY     = gsk_...
+LLM_BASE_URL    = https://api.groq.com/openai/v1
+LLM_MODEL       = llama-3.3-70b-versatile
+
+# Ollama (local/self-hosted)
+LLM_API_KEY     = ollama
+LLM_BASE_URL    = http://localhost:11434/v1
+LLM_MODEL       = codellama
+```
+
+GITHUB_TOKEN is provided automatically by GitHub Actions, no action needed.
 
 From this point, every PR opened against your repository will be automatically reviewed.
 
@@ -111,9 +113,9 @@ cd ai-pr-code-reviewer
 pip install -r requirements.txt
 
 cp .env.example .env
-# Add your NVIDIA_API_KEY and GITHUB_TOKEN to the .env file
+# Fill in your LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, and GITHUB_TOKEN
 
-python main.py --owner <github-org-or-username> --repo <repository-name> --pr <pr-number>
+python main.py --owner <github-username> --repo <repository-name> --pr <pr-number>
 ```
 
 Example:
@@ -146,7 +148,9 @@ Python, JavaScript, TypeScript, Java, Go, Ruby, PHP, C#, C++, C, Rust, Swift, Ko
 
 | Variable | Description |
 |----------|-------------|
-| NVIDIA_API_KEY | API key from build.nvidia.com |
+| LLM_API_KEY | API key for your chosen LLM provider |
+| LLM_BASE_URL | Base URL of the provider API (optional if using OpenAI directly) |
+| LLM_MODEL | Model name to use for reviews |
 | GITHUB_TOKEN | GitHub token with pull-requests write permission |
 
 ---
@@ -155,7 +159,7 @@ Python, JavaScript, TypeScript, Java, Go, Ruby, PHP, C#, C++, C, Rust, Swift, Ko
 
 | Component | Technology |
 |-----------|-----------|
-| AI Model | NVIDIA Llama-4 Maverick 17B 128E Instruct |
+| LLM Integration | Any OpenAI-compatible API |
 | GitHub Integration | GitHub REST API v3 |
 | Language | Python 3.11 |
 | Automation | GitHub Actions |
@@ -170,7 +174,7 @@ ai-pr-code-reviewer/
     workflows/
       pr-review.yml       triggers on pull_request events
   src/
-    llm_client.py         NVIDIA API calls and prompt engineering
+    llm_client.py         provider-agnostic LLM client
     github_client.py      GitHub API - fetch diffs, post comments, submit reviews
     reviewer.py           orchestration logic
   main.py                 entry point, supports CLI and Actions environment

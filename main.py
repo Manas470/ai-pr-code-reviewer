@@ -36,8 +36,12 @@ def main():
         print("Error: Provide --owner, --repo, --pr or set GITHUB_REPOSITORY and PR_NUMBER env vars")
         sys.exit(1)
 
-    if not os.environ.get("NVIDIA_API_KEY"):
-        print("Error: NVIDIA_API_KEY environment variable not set")
+    if not os.environ.get("LLM_API_KEY"):
+        print("Error: LLM_API_KEY environment variable not set")
+        sys.exit(1)
+
+    if not os.environ.get("LLM_MODEL"):
+        print("Error: LLM_MODEL environment variable not set")
         sys.exit(1)
 
     if not os.environ.get("GITHUB_TOKEN"):

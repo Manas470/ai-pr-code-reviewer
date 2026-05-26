@@ -1,6 +1,6 @@
 import os
 import json
-from src.llm_client import NvidiaLLMClient
+from src.llm_client import LLMClient
 from src.github_client import GitHubClient
 
 REVIEWABLE_EXTENSIONS = {
@@ -39,7 +39,7 @@ def determine_review_event(file_reviews: list) -> str:
 
 class PRReviewer:
     def __init__(self):
-        self.llm = NvidiaLLMClient()
+        self.llm = LLMClient()
         self.github = GitHubClient()
 
     def review_pr(self, owner: str, repo: str, pr_number: int):
