@@ -5,7 +5,6 @@ An automated GitHub Pull Request reviewer that works with any LLM provider. It r
 Works with OpenAI, NVIDIA NIM, Groq, Together AI, Ollama, or any OpenAI-compatible API.
 
 ---
-
 ## The Problem It Solves
 
 Code review is one of the most time-consuming parts of software development. A senior engineer reviewing a 10-file PR takes 30 to 60 minutes on average. Smaller teams skip reviews entirely. Security vulnerabilities, logic bugs, and performance problems slip through because reviewers are tired, rushed, or simply miss things.
